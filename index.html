@@ -173,9 +173,9 @@ button:hover{
         oninput="renderPool()">
 
     <div style="text-align:center;">
-        <button onclick="importMain()">Import Main</button>
+        <!-- <button onclick="importMain()">Import Main</button>
         <button onclick="importExtra()">Import Extra</button>
-        <button onclick="clearSave()">Reset</button>
+        <button onclick="clearSave()">Reset</button> -->
         <button onclick="exportDeck()">Export Deck</button>
     </div>
 
@@ -234,6 +234,18 @@ function loadDeck(){
     extraDeck = JSON.parse(localStorage.getItem("extraDeck") || "[]");
 
     rebuild();
+}
+
+// ---------------- LOAD JSON ----------------
+async function loadCardsJSON() {
+    const res = await fetch("cards.json");
+    const data = await res.json();
+
+    mainCards = data.main;
+    extraCards = data.extra;
+
+    renderPool();
+    render();
 }
 
 // ---------------- REBUILD COUNTS ----------------
@@ -329,9 +341,10 @@ function renderPool(){
 
         const img = document.createElement("img");
 
-        img.src = (x.type==="main" ? "cards/" : "extradeck/") + x.card;
+        // ✅ IMPORTANT: already full path from JSON
+        img.src = x.card;
 
-        img.onclick = () => addCard(x.card, x.type==="extra");
+        img.onclick = () => addCard(x.card, x.type === "extra");
 
         img.onmouseenter = () => {
             showPreview(img.src);
@@ -356,26 +369,22 @@ function render(){
     mainDiv.innerHTML = "";
     extraDiv.innerHTML = "";
 
-    // MAIN DECK
     mainDeck.forEach((c,i)=>{
         const img = document.createElement("img");
-        img.src = "cards/" + c;
+        img.src = c;
 
         img.onclick = ()=>removeCard(i,false);
-
-        img.onmouseenter = () => showPreview(img.src);
+        img.onmouseenter = () => showPreview(c);
 
         mainDiv.appendChild(img);
     });
 
-    // EXTRA DECK
     extraDeck.forEach((c,i)=>{
         const img = document.createElement("img");
-        img.src = "extradeck/" + c;
+        img.src = c;
 
         img.onclick = ()=>removeCard(i,true);
-
-        img.onmouseenter = () => showPreview(img.src);
+        img.onmouseenter = () => showPreview(c);
 
         extraDiv.appendChild(img);
     });
@@ -388,22 +397,32 @@ async function exportDeck() {
 
     const zip = new JSZip();
 
-    async function addFile(fileName, path) {
+    function getFileName(path) {
+        return path.split("/").pop();
+    }
 
-        const res = await fetch(path);
+    let i = 0;
+
+    // MAIN DECK
+    for (const card of mainDeck) {
+
+        const res = await fetch(card);
         const blob = await res.blob();
 
+        const fileName = `Main/${i++}_${getFileName(card)}`;
         zip.file(fileName, blob);
     }
 
-    // MAIN DECK
-    for (const file of mainDeck) {
-        await addFile(file, "cards/" + file);
-    }
+    i = 0;
 
     // EXTRA DECK
-    for (const file of extraDeck) {
-        await addFile(file, "extradeck/" + file);
+    for (const card of extraDeck) {
+
+        const res = await fetch(card);
+        const blob = await res.blob();
+
+        const fileName = `Extra/${i++}_${getFileName(card)}`;
+        zip.file(fileName, blob);
     }
 
     zip.generateAsync({ type: "blob" }).then(content => {
@@ -423,9 +442,7 @@ function clearSave(){
 }
 
 // ---------------- INIT ----------------
-loadDeck();
-renderPool();
-render();
+loadCardsJSON();
 
 </script>
 
