@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Deck Builder</title>
+
+<style>
+body{
+    font-family: Arial, sans-serif;
+    background: radial-gradient(circle at top, #1a1a1a, #0d0d0d);
+    color:white;
+    margin:0;
+    display:flex;
+}
+
+/* panels */
+.leftPanel, .middlePanel, .rightPanel{
+    backdrop-filter: blur(6px);
+}
+
+/* LEFT */
+.leftPanel{
+    width:25%;
+    padding:15px;
+    height:100vh;
+    border-right:1px solid #2a2a2a;
+}
+
+/* MIDDLE */
+.middlePanel{
+    width:40%;
+    padding:15px;
+    height:100vh;
+    overflow-y:auto;
+}
+
+/* RIGHT */
+.rightPanel{
+    width:35%;
+    padding:15px;
+    height:100vh;
+    overflow-y:auto;
+    border-left:1px solid #2a2a2a;
+}
+
+/* HEADERS */
+h2{
+    text-align:center;
+    letter-spacing:1px;
+    color:#ddd;
+    text-shadow:0 0 10px rgba(255,255,255,0.05);
+}
+
+/* COUNTERS */
+.counter{
+    text-align:center;
+    font-size:13px;
+    color:#aaa;
+}
+
+/* CARD BASE */
+.cardGrid img,
+.deckList img{
+    width:82px;
+    height:118px;
+    object-fit:cover;
+    border-radius:6px;
+    cursor:pointer;
+
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow:0 2px 6px rgba(0,0,0,0.5);
+}
+
+/* HOVER GLOW */
+.cardGrid img:hover,
+.deckList img:hover{
+    transform: scale(1.08);
+    box-shadow:
+        0 0 10px rgba(255,255,255,0.15),
+        0 0 20px rgba(0,200,255,0.1);
+    outline:none;
+}
+
+/* SEARCH BAR */
+#search{
+    width:100%;
+    padding:10px;
+    margin-bottom:10px;
+    background:#111;
+    border:1px solid #333;
+    color:white;
+    border-radius:6px;
+    outline:none;
+}
+
+/* BUTTONS */
+button{
+    font-size:12px;
+    padding:6px 10px;
+    margin:3px;
+    border-radius:6px;
+    cursor:pointer;
+
+    background:linear-gradient(180deg,#2b2b2b,#1a1a1a);
+    color:white;
+    border:1px solid #333;
+
+    transition:0.15s;
+}
+
+button:hover{
+    transform: translateY(-1px);
+    box-shadow:0 0 10px rgba(0,180,255,0.15);
+    border-color:#444;
+}
+
+/* SCROLLBAR (nice touch) */
+::-webkit-scrollbar{
+    width:6px;
+}
+
+::-webkit-scrollbar-thumb{
+    background:#333;
+    border-radius:10px;
+}
+
+::-webkit-scrollbar-thumb:hover{
+    background:#555;
+}
+</style>
+</head>
+
+<body>
+
+<!-- LEFT: PREVIEW -->
+<div class="leftPanel">
+
+    <h2>Preview</h2>
+
+    <div style="display:flex;justify-content:center;">
+        <img id="previewImg" style="
+            width:100%;
+            max-width:360px;
+            border-radius:10px;
+            display:none;
+        ">
+    </div>
+
+</div>
+
+<!-- MIDDLE: DECK -->
+<div class="middlePanel">
+
+    <h2>Main Deck (60)</h2>
+    <div class="counter" id="mainCount">0 / 60</div>
+    <div id="mainDeck" class="deckList"></div>
+
+    <hr>
+
+    <h2>Extra Deck (15)</h2>
+    <div class="counter" id="extraCount">0 / 15</div>
+    <div id="extraDeck" class="deckList"></div>
+
+</div>
+
+<!-- RIGHT: POOL -->
+<div class="rightPanel">
+
+    <h2>Card Pool</h2>
+
+    <input id="search"
+        placeholder="Search card name..."
+        oninput="renderPool()">
+
+    <div style="text-align:center;">
+        <button onclick="importMain()">Import Main</button>
+        <button onclick="importExtra()">Import Extra</button>
+        <button onclick="clearSave()">Reset</button>
+        <button onclick="exportDeck()">Export Deck</button>
+    </div>
+
+    <div id="pool" class="cardGrid"></div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+<script>
+
+const MAIN_LIMIT = 60;
+const EXTRA_LIMIT = 15;
+const MAX_DUPES = 3;
+
+let mainCards = [];
+let extraCards = [];
+
+let mainDeck = [];
+let extraDeck = [];
+
+let mainCount = new Map();
+let extraCount = new Map();
+
+function showPreview(src){
+    const img = document.getElementById("previewImg");
+
+    img.style.opacity = 0;
+    img.src = src;
+    img.style.display = "block";
+
+    setTimeout(() => {
+        img.style.transition = "0.15s";
+        img.style.opacity = 1;
+    }, 10);
+}
+
+// ---------------- UTIL ----------------
+function getName(file){
+    return file.toLowerCase().replace(/\.[^/.]+$/, "");
+}
+
+// ---------------- SAVE ----------------
+function saveDeck(){
+    localStorage.setItem("mainCards", JSON.stringify(mainCards));
+    localStorage.setItem("extraCards", JSON.stringify(extraCards));
+    localStorage.setItem("mainDeck", JSON.stringify(mainDeck));
+    localStorage.setItem("extraDeck", JSON.stringify(extraDeck));
+}
+
+// ---------------- LOAD ----------------
+function loadDeck(){
+    mainCards = JSON.parse(localStorage.getItem("mainCards") || "[]");
+    extraCards = JSON.parse(localStorage.getItem("extraCards") || "[]");
+    mainDeck = JSON.parse(localStorage.getItem("mainDeck") || "[]");
+    extraDeck = JSON.parse(localStorage.getItem("extraDeck") || "[]");
+
+    rebuild();
+}
+
+// ---------------- REBUILD COUNTS ----------------
+function rebuild(){
+    mainCount.clear();
+    extraCount.clear();
+
+    mainDeck.forEach(c =>
+        mainCount.set(c, (mainCount.get(c)||0)+1)
+    );
+
+    extraDeck.forEach(c =>
+        extraCount.set(c, (extraCount.get(c)||0)+1)
+    );
+}
+
+// ---------------- IMPORT ----------------
+function importMain(){ pickFolder(false); }
+function importExtra(){ pickFolder(true); }
+
+function pickFolder(isExtra){
+
+    const input = document.createElement("input");
+    input.type = "file";
+    input.webkitdirectory = true;
+
+    input.onchange = () => {
+
+        const files = [...input.files]
+            .map(f => f.webkitRelativePath.split("/").pop());
+
+        if(isExtra) extraCards = files;
+        else mainCards = files;
+
+        saveDeck();
+        renderPool();
+    };
+
+    input.click();
+}
+
+// ---------------- ADD ----------------
+function addCard(card, isExtra){
+
+    const deck = isExtra ? extraDeck : mainDeck;
+    const counts = isExtra ? extraCount : mainCount;
+    const limit = isExtra ? EXTRA_LIMIT : MAIN_LIMIT;
+
+    const count = counts.get(card) || 0;
+
+    if(count >= MAX_DUPES) return;
+    if(deck.length >= limit) return;
+
+    deck.push(card);
+    counts.set(card, count+1);
+
+    saveDeck();
+    render();
+}
+
+// ---------------- REMOVE ----------------
+function removeCard(index, isExtra){
+
+    const deck = isExtra ? extraDeck : mainDeck;
+    const counts = isExtra ? extraCount : mainCount;
+
+    const card = deck[index];
+
+    deck.splice(index,1);
+
+    counts.set(card, (counts.get(card)||1)-1);
+
+    saveDeck();
+    render();
+}
+
+// ---------------- RENDER POOL (SEARCH) ----------------
+function renderPool(){
+
+    const pool = document.getElementById("pool");
+    const query = document.getElementById("search").value.toLowerCase();
+
+    pool.innerHTML = "";
+
+    const all = [
+        ...mainCards.map(c => ({card:c, type:"main"})),
+        ...extraCards.map(c => ({card:c, type:"extra"}))
+    ];
+
+    all
+    .filter(x => x.card.toLowerCase().includes(query))
+    .forEach(x => {
+
+        const img = document.createElement("img");
+
+        img.src = (x.type==="main" ? "cards/" : "extradeck/") + x.card;
+
+        img.onclick = () => addCard(x.card, x.type==="extra");
+
+        img.onmouseenter = () => {
+            showPreview(img.src);
+        };
+
+        pool.appendChild(img);
+    });
+}
+
+// ---------------- RENDER DECK ----------------
+function render(){
+
+    document.getElementById("mainCount").textContent =
+        `${mainDeck.length} / ${MAIN_LIMIT}`;
+
+    document.getElementById("extraCount").textContent =
+        `${extraDeck.length} / ${EXTRA_LIMIT}`;
+
+    const mainDiv = document.getElementById("mainDeck");
+    const extraDiv = document.getElementById("extraDeck");
+
+    mainDiv.innerHTML = "";
+    extraDiv.innerHTML = "";
+
+    // MAIN DECK
+    mainDeck.forEach((c,i)=>{
+        const img = document.createElement("img");
+        img.src = "cards/" + c;
+
+        img.onclick = ()=>removeCard(i,false);
+
+        img.onmouseenter = () => showPreview(img.src);
+
+        mainDiv.appendChild(img);
+    });
+
+    // EXTRA DECK
+    extraDeck.forEach((c,i)=>{
+        const img = document.createElement("img");
+        img.src = "extradeck/" + c;
+
+        img.onclick = ()=>removeCard(i,true);
+
+        img.onmouseenter = () => showPreview(img.src);
+
+        extraDiv.appendChild(img);
+    });
+}
+
+async function exportDeck() {
+
+    const name = prompt("Name your deck:");
+    if (!name) return;
+
+    const zip = new JSZip();
+
+    async function addFile(fileName, path) {
+
+        const res = await fetch(path);
+        const blob = await res.blob();
+
+        zip.file(fileName, blob);
+    }
+
+    // MAIN DECK
+    for (const file of mainDeck) {
+        await addFile(file, "cards/" + file);
+    }
+
+    // EXTRA DECK
+    for (const file of extraDeck) {
+        await addFile(file, "extradeck/" + file);
+    }
+
+    zip.generateAsync({ type: "blob" }).then(content => {
+
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(content);
+        a.download = `${name || "deck"}.zip`;
+        a.click();
+
+    });
+}
+
+// ---------------- RESET ----------------
+function clearSave(){
+    localStorage.clear();
+    location.reload();
+}
+
+// ---------------- INIT ----------------
+loadDeck();
+renderPool();
+render();
+
+</script>
+
+</body>
+</html>
