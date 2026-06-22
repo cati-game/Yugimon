@@ -325,35 +325,44 @@ function removeCard(index, isExtra){
 }
 
 // ---------------- RENDER POOL (SEARCH) ----------------
+let searchTimeout;
+
 function renderPool(){
+    clearTimeout(searchTimeout);
 
-    const pool = document.getElementById("pool");
-    const query = document.getElementById("search").value.toLowerCase();
+    searchTimeout = setTimeout(() => {
 
-    pool.innerHTML = "";
+        const pool = document.getElementById("pool");
+        const query = document.getElementById("search").value.toLowerCase();
 
-    const all = [
-        ...mainCards.map(c => ({card:c, type:"main"})),
-        ...extraCards.map(c => ({card:c, type:"extra"}))
-    ];
+        pool.innerHTML = "";
 
-    all
-    .filter(x => x.card.toLowerCase().includes(query))
-    .forEach(x => {
+        const all = [
+            ...mainCards.map(c => ({card:c, type:"main"})),
+            ...extraCards.map(c => ({card:c, type:"extra"}))
+        ];
 
-        const img = document.createElement("img");
+        const fragment = document.createDocumentFragment();
 
-        // ✅ IMPORTANT: already full path from JSON
-        img.src = x.card;
+        all
+        .filter(x => x.card.toLowerCase().includes(query))
+        .forEach(x => {
 
-        img.onclick = () => addCard(x.card, x.type === "extra");
+            const img = document.createElement("img");
+            img.src = x.card;
 
-        img.onmouseenter = () => {
-            showPreview(img.src);
-        };
+            img.loading = "lazy"; // IMPORTANT
 
-        pool.appendChild(img);
-    });
+            img.onclick = () => addCard(x.card, x.type === "extra");
+
+            img.onmouseenter = () => showPreview(img.src);
+
+            fragment.appendChild(img);
+        });
+
+        pool.appendChild(fragment);
+
+    }, 80); // small delay
 }
 
 // ---------------- RENDER DECK ----------------
