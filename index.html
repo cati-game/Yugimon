@@ -178,6 +178,8 @@ button:hover{
         <!-- <button onclick="importMain()">Import Main</button>
         <button onclick="importExtra()">Import Extra</button>
         <button onclick="clearSave()">Reset</button> -->
+        <button onclick="saveDeckJSON()">Save Deck</button>
+        <button onclick="loadDeckJSON()">Load Deck</button>
         <button onclick="exportDeck()">Export Deck</button>
     </div>
 
@@ -248,6 +250,63 @@ async function loadCardsJSON() {
 
     renderPool();
     render();
+}
+
+async function saveDeckJSON() {
+
+    const name = prompt("Deck name:");
+    if (!name) return;
+
+    const data = {
+        name,
+        mainDeck,
+        extraDeck
+    };
+
+    const blob = new Blob(
+        [JSON.stringify(data, null, 2)],
+        { type: "application/json" }
+    );
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${name}.json`;
+    a.click();
+
+    URL.revokeObjectURL(a.href);
+}
+
+async function loadDeckJSON() {
+
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+
+    input.onchange = async () => {
+
+        const file = input.files[0];
+        if (!file) return;
+
+        try {
+
+            const text = await file.text();
+            const data = JSON.parse(text);
+
+            mainDeck = data.mainDeck || [];
+            extraDeck = data.extraDeck || [];
+
+            rebuild();
+            saveDeck();
+            render();
+
+        } catch(err) {
+
+            alert("Invalid deck file");
+            console.error(err);
+        }
+    };
+
+    input.click();
 }
 
 // ---------------- REBUILD COUNTS ----------------
