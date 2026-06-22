@@ -468,9 +468,15 @@ async function exportDeck() {
     const zip = new JSZip();
 
     function getFileName(path) {
-        return path.split("/").pop();
-    }
+        let name = path.split("/").pop();
 
+        // remove old extension
+        name = name.replace(/\.(jpeg|png|webp|gif)$/i, "");
+
+        // force jpg
+        return name + ".jpg";
+    }
+    
     let i = 0;
 
     // MAIN DECK
