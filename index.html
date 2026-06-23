@@ -145,6 +145,7 @@ button:hover{
             max-width:360px;
             border-radius:10px;
             display:none;
+            cursor:pointer;
         ">
     </div>
 
@@ -178,6 +179,7 @@ button:hover{
         <!-- <button onclick="importMain()">Import Main</button>
         <button onclick="importExtra()">Import Extra</button>
         <button onclick="clearSave()">Reset</button> -->
+        <button onclick="randomDeck()">Random Deck</button>
         <button onclick="saveDeckJSON()">Save Deck</button>
         <button onclick="loadDeckJSON()">Load Deck</button>
         <button onclick="exportDeck()">Export Deck</button>
@@ -185,6 +187,24 @@ button:hover{
 
     <div id="pool" class="cardGrid"></div>
 
+</div>
+
+<div id="fullscreenViewer" style="
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.95);
+    z-index:9999;
+    justify-content:center;
+    align-items:center;
+    cursor:pointer;
+">
+
+    <img id="fullscreenImg" style="
+        max-width:95vw;
+        max-height:95vh;
+        object-fit:contain;
+    ">
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -383,6 +403,68 @@ function removeCard(index, isExtra){
     render();
 }
 
+// ---------------- PREVIEW ----------------
+function openFullscreen() {
+
+    const preview = document.getElementById("previewImg");
+
+    if (!preview.src) return;
+
+    const viewer = document.getElementById("fullscreenViewer");
+    const fullImg = document.getElementById("fullscreenImg");
+
+    fullImg.src = preview.src;
+    viewer.style.display = "flex";
+}
+
+function closeFullscreen() {
+
+    document.getElementById("fullscreenViewer").style.display = "none";
+}
+
+// ---------------- RANDOM DECK ----------------
+function randomDeck() {
+
+    mainDeck = [];
+    extraDeck = [];
+
+    mainCount.clear();
+    extraCount.clear();
+
+    const mainSize = Math.floor(Math.random() * 21) + 40;
+
+    while (mainDeck.length < mainSize) {
+
+        const card =
+            mainCards[Math.floor(Math.random() * mainCards.length)];
+
+        const count = mainCount.get(card) || 0;
+
+        if (count >= MAX_DUPES)
+            continue;
+
+        mainDeck.push(card);
+        mainCount.set(card, count + 1);
+    }
+
+    while (extraDeck.length < 15) {
+
+        const card =
+            extraCards[Math.floor(Math.random() * extraCards.length)];
+
+        const count = extraCount.get(card) || 0;
+
+        if (count >= MAX_DUPES)
+            continue;
+
+        extraDeck.push(card);
+        extraCount.set(card, count + 1);
+    }
+
+    saveDeck();
+    render();
+}
+
 // ---------------- RENDER POOL (SEARCH) ----------------
 let searchTimeout;
 
@@ -519,6 +601,19 @@ function clearSave(){
 
 // ---------------- INIT ----------------
 loadCardsJSON();
+
+document.getElementById("previewImg")
+    .addEventListener("click", openFullscreen);
+
+document.getElementById("fullscreenViewer")
+    .addEventListener("click", closeFullscreen);
+
+document.addEventListener("keydown", e => {
+
+    if (e.key === "Escape") {
+        closeFullscreen();
+    }
+});
 
 </script>
 
